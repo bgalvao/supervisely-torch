@@ -1,0 +1,1 @@
+Place your downloaded supervisely dataset as-is right here in this directory.
