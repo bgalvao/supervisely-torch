@@ -1,7 +1,10 @@
+# ignore dataset files, images and annotations: too big!
 supervisely_dataset/*
 !supervisely_dataset/README.md
 
+# ignore text editor settings
 .vscode
 
+# ignore compiled and cache files
 __pycache__/
 *.py[cod]
