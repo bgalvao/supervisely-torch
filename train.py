@@ -67,8 +67,8 @@ if __name__ == "__main__":
 
     # split the dataset in train and test set
     indices = torch.randperm(len(dataset)).tolist()
-    dataset = torch.utils.data.Subset(dataset, indices[:-TRAIN_SPLIT])
-    dataset_test = torch.utils.data.Subset(dataset_test, indices[-TRAIN_SPLIT:])
+    dataset = torch.utils.data.Subset(dataset, indices[:TRAIN_SPLIT])
+    dataset_test = torch.utils.data.Subset(dataset_test, indices[TRAIN_SPLIT:])
 
 
     # define training and validation data loaders
