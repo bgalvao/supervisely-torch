@@ -8,3 +8,9 @@ supervisely_dataset/*
 # ignore compiled and cache files
 __pycache__/
 *.py[cod]
+
+# sensitive files with api keys
+notifications/*.json
+
+# runs: tensorboard logs and model checkpoints
+runs/
