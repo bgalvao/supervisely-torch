@@ -2,8 +2,6 @@ import random
 import torch
 
 from torchvision.transforms import functional as F
-
-
 def _flip_coco_person_keypoints(kps, width):
     flip_inds = [0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15]
     flipped_data = kps[:, flip_inds]
@@ -48,3 +46,18 @@ class ToTensor(object):
     def __call__(self, image, target):
         image = F.to_tensor(image)
         return image, target
+
+
+class TransformWrapper(object):
+    """
+    Wrappers around `torchvision.transforms.*` but for the object detection
+    boilerplate code by pytorch tutorials.
+
+    This wrapper class does not (yet?) support transforms that change
+    bounding boxes (e.g. `torchvision.transforms.RandomVerticalFlip`)
+    """
+    def __init__(self, transform):
+        self.t = transform
+    
+    def __call__(self, image, target):
+        return self.t(image), target
