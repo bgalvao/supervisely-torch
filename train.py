@@ -20,7 +20,7 @@ from references.transforms import TransformWrapper as Wrapper
 from references import utils
 
 # texting logs
-from notifications.telegram import send_message as telegram
+#from notifications.telegram import send_message as telegram
 import os
 import datetime
 
@@ -29,7 +29,7 @@ import datetime
 _NUM_CLASSES = get_num_classes()  # reads from dataset and sets this constant
 
 # params
-NUM_EPOCHS = 10
+NUM_EPOCHS = 6
 BATCH_SIZE = 12  # as great as your GPU can handle
 ALT_BACKBONE = None
 TRAIN_SPLIT = .95  # make sure it returns an uint index
@@ -39,7 +39,7 @@ MOMENTUM = 0.9
 WEIGHT_DECAY = 0.0005
 
 LOG = True
-
+CHECKPOINT_STEP = 2  # set to None if you do not want checkpoints.
 
 def exit():
     from sys import exit
@@ -49,7 +49,6 @@ if LOG:
     # then start tensorboard summary writer
     # log_dir = './runs/logs'
     writer = SummaryWriter()
-    writer.add_scalar('ass/hole', 11)
     # get the run name
     run_name = writer.log_dir.split('/')[-1]
 
@@ -85,6 +84,12 @@ def get_transforms(train=False):
     )))
     
     return T.Compose(transforms)
+
+
+def get_coco_eval_scores(coco_evaluator):
+    sts = coco_evaluator.coco_eval['bbox'].stats
+    kees = ['_'.join([i,j]) for i in ['ap', 'ar'] for j in ['a', 'b', 'c', 'd', 'e', 'f']]
+    return {k:s for k, s in zip(kees, sts)}
 
 
 def spawn_model(alt_backbone=ALT_BACKBONE):
@@ -153,28 +158,46 @@ if __name__ == "__main__":
 
     for epoch in range(NUM_EPOCHS):
         # train for one epoch, printing every 10 iterations
-        train_one_epoch(
+        metric_logger = train_one_epoch(
             model, optimizer, data_loader, device, epoch, print_freq=10
         )
-        
-        # update the learning rate
+
+        # update the learning
         lr_scheduler.step()
-        
+
         # evaluate on the test dataset
-        evaluate(model, data_loader_test, device=device)
+        coco_evaluator = evaluate(model, data_loader_test, device=device)
+
+        # gather metrics for logging
+        train_loss_median = {k: v.median for k, v in metric_logger.meters.items()}
+        train_loss_avg = {k: v.avg for k, v in metric_logger.meters.items()}
+        eval_coco_avg = get_coco_eval_scores(coco_evaluator)
 
         # uncomment if block if you want to save checkpoints
-        # if (epoch+1 % 2) == 0:
-        #     torch.save(
-        #         {
-        #             'epoch': epoch+1,
-        #             'model_state_dict': model.state_dict(),
-        #             'optimizer_state_dict': optimizer.state_dict(),
-        #             # 'loss': loss,
-        #             # 'val_loss': val_loss
-        #         },
-        #         os.path.join(model_save_dir, 'model_{}.pt'.format(epoch+1))
-        #     )
+        if CHECKPOINT_STEP is not None:
+            if (epoch+1 % CHECKPOINT_STEP) == 0:
+                torch.save(
+                    {
+                        'epoch': epoch+1,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'lr_scheduler_state_dict': lr_scheduler.state_dict(),
+                        'metrics': {
+                            'train': {'avg':train_loss_avg, 'median': train_loss_median},
+                            'test': {'avg': eval_coco_avg}
+                        }
+                    },
+                    os.path.join(model_save_dir, 'model_{}.pt'.format(epoch+1))
+                )
+
+        if LOG:
+            for k, v in train_loss_median.items():
+                writer.add_scalar('train_median/'+k, v)
+            for k, v in train_loss_avg.items():
+                writer.add_scalar('train_avg/'+k, v)
+            for k, v in eval_coco_avg.items():
+                writer.add_scalar('test_avg/'+k, v)
+            writer.flush()
 
 
     end = datetime.datetime.now()
@@ -187,23 +210,27 @@ if __name__ == "__main__":
     #     "- is now finished at {}".format(formatted_end_dt),
     #     "- took {} long".format(str(end - start).split('.')[0])
     # ]))
-  
+
     torch.save(model.state_dict(), model_save_path)
     print('swweet')
+    
+    hd={
+        'total_epochs':NUM_EPOCHS,
+        'batch_size':BATCH_SIZE,
+        'train_split':TRAIN_SPLIT,
+        'duration':duration.seconds / 3600,  # hours
+
+        'learning_rate':LEARNING_RATE,
+        'learning_rate_scheduler':type(lr_scheduler).__name__,
+        'momentum':MOMENTUM,
+        'weight_decay':WEIGHT_DECAY,
+        'num_classes':_NUM_CLASSES
+    }
 
     if LOG:
         writer.add_hparams(
-            hparam_dict={
-                'total_epochs':NUM_EPOCHS,
-                'batch_size':BATCH_SIZE,
-                'train_split':TRAIN_SPLIT,
-                'duration':duration,
-
-                'learning_rate':LEARNING_RATE,
-                'momentum':MOMENTUM,
-                'weight_decay':WEIGHT_DECAY,
-
-                'num_classes':_NUM_CLASSES
-            },
-            metric_dict=None
+            hd,
+            metric_dict={'res/'+k:float(s) for k, s in eval_coco_avg.items()}
         )
+        writer.flush()
+        writer.close()
