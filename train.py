@@ -39,7 +39,7 @@ MOMENTUM = 0.9
 WEIGHT_DECAY = 0.0005
 
 LOG = True
-CHECKPOINT_STEP = 2  # set to None if you do not want checkpoints.
+CHECKPOINT_STEP = None  # set to None if you do not want checkpoints.
 
 def exit():
     from sys import exit
@@ -192,11 +192,11 @@ if __name__ == "__main__":
 
         if LOG:
             for k, v in train_loss_median.items():
-                writer.add_scalar('train_median/'+k, v)
+                writer.add_scalar('train_median/'+k, v, epoch)
             for k, v in train_loss_avg.items():
-                writer.add_scalar('train_avg/'+k, v)
+                writer.add_scalar('train_avg/'+k, v, epoch)
             for k, v in eval_coco_avg.items():
-                writer.add_scalar('test_avg/'+k, v)
+                writer.add_scalar('test_avg/'+k, v, epoch)
             writer.flush()
 
 
@@ -211,14 +211,13 @@ if __name__ == "__main__":
     #     "- took {} long".format(str(end - start).split('.')[0])
     # ]))
 
-    torch.save(model.state_dict(), model_save_path)
+    #torch.save(model.state_dict(), model_save_path)
     print('swweet')
-    
+
     hd={
         'total_epochs':NUM_EPOCHS,
         'batch_size':BATCH_SIZE,
         'train_split':TRAIN_SPLIT,
-        'duration':duration.seconds / 3600,  # hours
 
         'learning_rate':LEARNING_RATE,
         'learning_rate_scheduler':type(lr_scheduler).__name__,
@@ -227,10 +226,13 @@ if __name__ == "__main__":
         'num_classes':_NUM_CLASSES
     }
 
+    md={'res/'+k:float(s) for k, s in eval_coco_avg.items()}
+    md['duration'] = duration.seconds / 3600
+
     if LOG:
         writer.add_hparams(
             hd,
-            metric_dict={'res/'+k:float(s) for k, s in eval_coco_avg.items()}
+            md
         )
         writer.flush()
         writer.close()
