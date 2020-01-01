@@ -55,10 +55,16 @@ def parse_annotation(ann_path, classes):
         bbox = obj['points']['exterior']
         label = obj['classTitle']
         
-        xmin = bbox[0][0]
-        ymin = bbox[0][1]
-        xmax = bbox[1][0]
-        ymax = bbox[1][1]
+        xmin = min(bbox[0][0], bbox[1][0])
+        xmax = max(bbox[0][0], bbox[1][0])
+        ymin = min(bbox[0][1], bbox[1][1])
+        ymax = max(bbox[0][1], bbox[1][1])
+
+        if xmin >= xmax or ymin >= ymax:
+            raise Exception('bad coordinates {}\n\n{}'.format(
+                    [xmin, ymin, xmax, ymax],
+                    json.dumps(d, indent=2)
+            ))
         
         boxes.append([xmin, ymin, xmax, ymax])
         labels.append(classes[label])

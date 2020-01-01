@@ -1,6 +1,3 @@
-# DONE: augmentations
-# TODO: checkpoints
-# TODO: logging; tensorboard; 
 # TODO: hyperparams D:
 
 # for loading your custom dataset
@@ -20,7 +17,7 @@ from references.transforms import TransformWrapper as Wrapper
 from references import utils
 
 # texting logs
-#from notifications.telegram import send_message as telegram
+from notifications.telegram import send_message as telegram
 import os
 import datetime
 
@@ -29,8 +26,12 @@ import datetime
 _NUM_CLASSES = get_num_classes()  # reads from dataset and sets this constant
 
 # params
-NUM_EPOCHS = 6
-BATCH_SIZE = 12  # as great as your GPU can handle
+NUM_EPOCHS = 1
+BATCH_SIZE = 4   # as great as your GPU can handle
+NUM_WORKERS = 1  # this is per data loader and you have 2 of them, so overall
+                 # the number of threads is NUM_WORKERS*2
+
+
 ALT_BACKBONE = None
 TRAIN_SPLIT = .95  # make sure it returns an uint index
 
@@ -38,8 +39,14 @@ LEARNING_RATE = 0.005
 MOMENTUM = 0.9
 WEIGHT_DECAY = 0.0005
 
+LR_SCHEDULER_STEP = 3
+LR_SCHEDULER_GAMMA = 0.1
+
 LOG = True
 CHECKPOINT_STEP = None  # set to None if you do not want checkpoints.
+
+NOTIFY_STEP = None
+
 
 def exit():
     from sys import exit
@@ -123,20 +130,20 @@ if __name__ == "__main__":
     dataset_test = torch.utils.data.Subset(dataset_test, indices[TRAIN_SPLIT:])
 
     # define training and validation data loaders
-    num_workrs = 1
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=1, shuffle=True, num_workers=num_workrs,
+        dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS,
         collate_fn=utils.collate_fn
     )
 
     data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=1, shuffle=False, num_workers=num_workrs,
+        dataset_test, batch_size=1, shuffle=False, num_workers=NUM_WORKERS,
         collate_fn=utils.collate_fn
     )
 
     # move model to the right device
     model = spawn_model()
     model.to(device)
+
     # construct an optimizer
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.SGD(
@@ -150,8 +157,8 @@ if __name__ == "__main__":
     # and a learning rate scheduler
     lr_scheduler = torch.optim.lr_scheduler.StepLR(
         optimizer,
-        step_size=3,
-        gamma=0.1
+        step_size=LR_SCHEDULER_STEP,
+        gamma=LR_SCHEDULER_GAMMA
     )
 
     start = datetime.datetime.now()
@@ -175,7 +182,7 @@ if __name__ == "__main__":
 
         # uncomment if block if you want to save checkpoints
         if CHECKPOINT_STEP is not None:
-            if (epoch+1 % CHECKPOINT_STEP) == 0:
+            if ((epoch+1) % CHECKPOINT_STEP) == 0:
                 torch.save(
                     {
                         'epoch': epoch+1,
@@ -199,17 +206,15 @@ if __name__ == "__main__":
                 writer.add_scalar('test_avg/'+k, v, epoch)
             writer.flush()
 
+        if NOTIFY_STEP is not None:
+            if ((epoch+1) % NOTIFY_STEP) == 0:
+                telegram(str(coco_evaluator.summarize()))
+                telegram(str(train_loss_median))
+
 
     end = datetime.datetime.now()
     duration = end-start
 
-    # telegram("\n".join([
-    #     "- training job that started at {}".format(
-    #         str(start).split('.')[0].replace(' ', '@')
-    #     ),
-    #     "- is now finished at {}".format(formatted_end_dt),
-    #     "- took {} long".format(str(end - start).split('.')[0])
-    # ]))
 
     #torch.save(model.state_dict(), model_save_path)
     print('swweet')
@@ -229,6 +234,7 @@ if __name__ == "__main__":
     md={'res/'+k:float(s) for k, s in eval_coco_avg.items()}
     md['duration'] = duration.seconds / 3600
 
+
     if LOG:
         writer.add_hparams(
             hd,
@@ -236,3 +242,15 @@ if __name__ == "__main__":
         )
         writer.flush()
         writer.close()
+
+
+    if NOTIFY_STEP is not None:
+        telegram("\n".join([
+            "- training job that started at {}".format(
+                str(start).split('.')[0].replace(' ', '@')
+            ),
+            "- took {} long".format(str(end - start).split('.')[0])
+        ]))
+
+
+
