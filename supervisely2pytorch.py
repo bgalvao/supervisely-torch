@@ -45,29 +45,38 @@ def load_paths(dataset_dir):
 
 
 def parse_annotation(ann_path, classes):
+
     # print(ann_path)
     with open(ann_path, 'r') as file:
         d = json.load(file)
+
     # print(json.dumps(d, indent=2))
     boxes = []
     labels = []
     for i, obj in enumerate(d['objects']):
         bbox = obj['points']['exterior']
         label = obj['classTitle']
-        
+
         xmin = min(bbox[0][0], bbox[1][0])
         xmax = max(bbox[0][0], bbox[1][0])
         ymin = min(bbox[0][1], bbox[1][1])
         ymax = max(bbox[0][1], bbox[1][1])
 
-        if xmin >= xmax or ymin >= ymax:
+        if xmin > xmax or ymin > ymax:
             raise Exception('bad coordinates {}\n\n{}'.format(
                     [xmin, ymin, xmax, ymax],
                     json.dumps(d, indent=2)
             ))
-        
+
+        if xmin == xmax or ymin == ymax:
+            # in case the bbox is just a straight line
+            continue
+
         boxes.append([xmin, ymin, xmax, ymax])
         labels.append(classes[label])
+
+    if len(boxes) == 0:
+        print('-- criteria left 0 bounding boxes on the image --')
 
     boxes = torch.as_tensor(boxes, dtype=torch.float32)
     labels = torch.as_tensor(labels, dtype=torch.int64)
@@ -90,7 +99,7 @@ class SuperviselyDataset(Dataset):
     def __init__(self, root=DATASET_DIR, transforms=None):
         self.root = root
         self.transforms = transforms
-        
+
         self.data_paths = load_paths(root)
         with open(self.data_paths['meta'], 'r') as file:
             self.classes = {
@@ -103,12 +112,12 @@ class SuperviselyDataset(Dataset):
         # read image
         img_path = self.data_paths['imgs'][idx]['img_path']
         img = Image.open(img_path).convert('RGB')
-        
+
         # parse annotation
         ann_path = self.data_paths['imgs'][idx]['ann_path']
         boxes, labels, areas, iscrowd = parse_annotation(ann_path, self.classes)
         img_id = torch.tensor([idx])
-        
+
         target = {}
         target["boxes"] = boxes
         target["labels"] = labels
@@ -142,4 +151,3 @@ if __name__ == "__main__":
 
     ds = SuperviselyDataset(args.dataset_dir)
     print(ds[0])
-

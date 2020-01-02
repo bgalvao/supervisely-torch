@@ -43,7 +43,10 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
             sys.exit(1)
 
         optimizer.zero_grad()
+
+        #torch.cuda.empty_cache()
         losses.backward()
+
         optimizer.step()
 
         if lr_scheduler is not None:
@@ -51,7 +54,6 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
 
         metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
-        #torch.cuda.empty_cache()
 
     return metric_logger
 

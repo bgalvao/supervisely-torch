@@ -26,9 +26,9 @@ import datetime
 _NUM_CLASSES = get_num_classes()  # reads from dataset and sets this constant
 
 # params
-NUM_EPOCHS = 1
-BATCH_SIZE = 4   # as great as your GPU can handle
-NUM_WORKERS = 1  # this is per data loader and you have 2 of them, so overall
+NUM_EPOCHS = 100
+BATCH_SIZE = 2   # as great as your GPU can handle
+NUM_WORKERS = 2  # this is per data loader and you have 2 of them, so overall
                  # the number of threads is NUM_WORKERS*2
 
 
@@ -39,13 +39,13 @@ LEARNING_RATE = 0.005
 MOMENTUM = 0.9
 WEIGHT_DECAY = 0.0005
 
-LR_SCHEDULER_STEP = 3
+LR_SCHEDULER_STEP = 25
 LR_SCHEDULER_GAMMA = 0.1
 
 LOG = True
-CHECKPOINT_STEP = None  # set to None if you do not want checkpoints.
+CHECKPOINT_STEP = 7  # set to None if you do not want checkpoints
 
-NOTIFY_STEP = None
+NOTIFY_STEP = 1  # set to None if you do not want notifications
 
 
 def exit():
@@ -208,8 +208,11 @@ if __name__ == "__main__":
 
         if NOTIFY_STEP is not None:
             if ((epoch+1) % NOTIFY_STEP) == 0:
-                telegram(str(coco_evaluator.summarize()))
-                telegram(str(train_loss_median))
+                try:
+                    telegram(str(coco_evaluator.summarize()))
+                    telegram(str(train_loss_median)+' :: epoch {}'.format(epoch))
+                except:
+                    pass
 
 
     end = datetime.datetime.now()
@@ -251,6 +254,4 @@ if __name__ == "__main__":
             ),
             "- took {} long".format(str(end - start).split('.')[0])
         ]))
-
-
 
